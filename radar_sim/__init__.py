@@ -2,6 +2,7 @@ from .signal_model import (
     ArrayGeometry,
     NoiseConfig,
     RadarSimulator,
+    RadarConfig,
     Target,
     Waveform,
     lfm_pulse,
@@ -12,6 +13,7 @@ from .signal_model import (
 __all__ = [
     "ArrayGeometry",
     "NoiseConfig",
+    "RadarConfig",
     "RadarSimulator",
     "Target",
     "Waveform",

@@ -94,6 +94,34 @@ class Waveform:
     def fast_time_samples(self) -> int:
         return int(np.round(self.pri * self.sample_rate))
 
+    @property
+    def prf(self) -> float:
+        return 1.0 / self.pri
+
+    @property
+    def unambiguous_range_m(self) -> float:
+        return constants.c * self.pri / 2.0
+
+    @property
+    def range_resolution_m(self) -> float:
+        return constants.c / (2.0 * self.bandwidth)
+
+    @property
+    def max_unambiguous_velocity_m_s(self) -> float:
+        return self.wavelength / (4.0 * self.pri)
+
+    @property
+    def cpi_duration_s(self) -> float:
+        return self.num_pulses * self.pri
+
+    @property
+    def doppler_resolution_hz(self) -> float:
+        return 1.0 / self.cpi_duration_s
+
+    @property
+    def velocity_resolution_m_s(self) -> float:
+        return self.wavelength / (2.0 * self.cpi_duration_s)
+
 
 @dataclass
 class Target:
@@ -121,11 +149,44 @@ class NoiseConfig:
             raise ValueError("Noise std must be non-negative.")
 
 
+@dataclass(frozen=True)
+class RadarConfig:
+    unambiguous_range_m: float
+    max_unambiguous_velocity_m_s: float
+    range_resolution_m: float
+    velocity_resolution_m_s: float
+    prf_hz: float
+    cpi_duration_s: float
+    doppler_resolution_hz: float
+
+
 class RadarSimulator:
     def __init__(self, geometry: ArrayGeometry, waveform: Waveform) -> None:
         self.geometry = geometry
         self.waveform = waveform
         self._positions = geometry.element_positions()
+        self.radar_config = RadarConfig(
+            unambiguous_range_m=waveform.unambiguous_range_m,
+            max_unambiguous_velocity_m_s=waveform.max_unambiguous_velocity_m_s,
+            range_resolution_m=waveform.range_resolution_m,
+            velocity_resolution_m_s=waveform.velocity_resolution_m_s,
+            prf_hz=waveform.prf,
+            cpi_duration_s=waveform.cpi_duration_s,
+            doppler_resolution_hz=waveform.doppler_resolution_hz,
+        )
+
+    def radar_config_summary(self) -> str:
+        config = self.radar_config
+        return (
+            "Radar performance summary:\n"
+            f"  unambiguous_range_m       : {config.unambiguous_range_m:.6g}\n"
+            f"  max_unambig_velocity_m_s  : {config.max_unambiguous_velocity_m_s:.6g}\n"
+            f"  range_resolution_m        : {config.range_resolution_m:.6g}\n"
+            f"  velocity_resolution_m_s   : {config.velocity_resolution_m_s:.6g}\n"
+            f"  prf_hz                    : {config.prf_hz:.6g}\n"
+            f"  cpi_duration_s            : {config.cpi_duration_s:.6g}\n"
+            f"  doppler_resolution_hz     : {config.doppler_resolution_hz:.6g}"
+        )
 
     def fast_time_axis(self) -> np.ndarray:
         num_fast = self.waveform.fast_time_samples
@@ -138,8 +199,13 @@ class RadarSimulator:
         return tx_baseband(t, self.waveform)
 
     def rx_baseband(
-        self, targets: Sequence[Target], noise: NoiseConfig | None = None
+        self,
+        targets: Sequence[Target],
+        noise: NoiseConfig | None = None,
+        print_radar_config: bool = True,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        if print_radar_config:
+            print(self.radar_config_summary())
         fast_time = self.fast_time_axis()
         slow_time = self.slow_time_axis()
         time_grid = slow_time[:, None] + fast_time[None, :]

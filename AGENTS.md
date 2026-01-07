@@ -7,3 +7,20 @@
 - 使用 matplotlib 来作为画图工具包
 
 
+
+# Project codebase summary
+- Project uses uv to manage dependencies and run scripts (see `pyproject.toml`).
+- Package layout: `radar_sim/` holds the simulation code, `tests/` holds runnable demo scripts.
+- `radar_sim/signal_model.py`:
+  - Core functions: `unit_direction`, `lfm_pulse`, `tx_baseband`.
+  - Data classes: `ArrayGeometry`, `Waveform`, `Target`, `NoiseConfig`, `RadarConfig`.
+  - `RadarSimulator` builds element positions, exposes time axes, and simulates RX baseband.
+  - `rx_baseband` returns `X[p, q, fast_time, slow_time]` plus time axes, with optional noise.
+  - On simulation start, it prints a radar performance summary (range/velocity resolution, PRF, CPI).
+- `radar_sim/__init__.py` re-exports public classes and helpers.
+- Demo scripts:
+  - `tests/test_tx_baseband.py`: plots a single-PRI TX baseband time/spectrum.
+  - `tests/test_rx_baseband.py`: plots each element's CPI time/spectrum (with noise).
+- Run demos with uv:
+  - `uv run python tests/test_tx_baseband.py`
+  - `uv run python tests/test_rx_baseband.py`
