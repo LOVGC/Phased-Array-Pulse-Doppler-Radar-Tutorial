@@ -226,7 +226,7 @@ class RadarSimulator:
                 -np.tensordot(self._positions, direction, axes=([2], [0]))
                 / constants.c
             )
-            range_time = target.range_m + target.velocity_m_s * time_grid
+            range_time = target.range_m - target.velocity_m_s * time_grid # v>0 目标靠近雷达
             tau_range = 2.0 * range_time / constants.c
 
             for p in range(self.geometry.num_x):
