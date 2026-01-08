@@ -6,7 +6,6 @@ from radar_sim.signal_model import ArrayGeometry, NoiseConfig, RadarSimulator, T
 
 
 def build_demo_scene() -> tuple[Waveform, ArrayGeometry, list[Target]]:
-    '''builds a shared demo scene and RX simulation.'''
     waveform = Waveform(
         pulse_width=20e-6,
         bandwidth=5e6,

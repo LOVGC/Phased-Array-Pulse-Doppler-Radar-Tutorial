@@ -10,7 +10,7 @@ from basic_radar_signal_processing.processing import (
     spatial_frequency_axes,
     doppler_process,
 )
-from tests.utils import build_demo_scene, simulate_rx
+from utils import build_demo_scene, simulate_rx
 
 
 def main() -> None:

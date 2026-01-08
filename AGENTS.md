@@ -10,7 +10,7 @@
 
 # Project codebase summary
 - Project uses uv to manage dependencies and run scripts (see `pyproject.toml`).
-- Package layout: `radar_sim/` holds the simulation code, `basic_radar_signal_processing/` holds processing utilities, `tests/` holds runnable demo scripts.
+- Package layout: `radar_sim/` holds the simulation code, `basic_radar_signal_processing/` holds processing utilities, `utils/` holds shared demo scene helpers, `tests/` holds runnable demo scripts.
 - `radar_sim/signal_model.py`:
   - Core functions: `unit_direction`, `lfm_pulse`, `tx_baseband`.
   - Data classes: `ArrayGeometry`, `Waveform`, `Target`, `NoiseConfig`, `RadarConfig`.
@@ -23,6 +23,7 @@
   - Doppler processing: `doppler_process`, `doppler_axis_hz`.
   - Angle processing: `build_steering_matrix`, `bartlett_beamform`, `fft_beamform_2d`, `spatial_frequency_axes`.
 - `basic_radar_signal_processing/__init__.py` re-exports processing utilities.
+- `utils/demo_scene.py` provides `build_demo_scene` and `simulate_rx` for shared test scenarios.
 - Demo scripts:
   - `tests/test_tx_baseband.py`: plots a single-PRI TX baseband time/spectrum.
   - `tests/test_rx_baseband.py`: plots each element's CPI time/spectrum (with noise).

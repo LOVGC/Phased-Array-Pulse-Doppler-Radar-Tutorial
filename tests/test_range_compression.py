@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from basic_radar_signal_processing.processing import range_axis_m, range_compress
-from tests.utils import build_demo_scene, simulate_rx
+from utils import build_demo_scene, simulate_rx
 
 
 def main() -> None:
