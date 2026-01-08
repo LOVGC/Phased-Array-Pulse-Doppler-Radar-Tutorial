@@ -11,10 +11,10 @@ def main() -> None:
         carrier_frequency=10e9,
         sample_rate=40e6,
         pri=200e-6,
-        num_pulses=1,
+        num_pulses=3,
     )
 
-    fast_time = np.arange(waveform.fast_time_samples) / waveform.sample_rate
+    fast_time = np.arange(waveform.fast_time_samples * waveform.num_pulses) / waveform.sample_rate
     tx = tx_baseband(fast_time, waveform)
 
     fig, axes = plt.subplots(2, 1, figsize=(10, 6))
@@ -23,7 +23,7 @@ def main() -> None:
     axes[0].plot(fast_time * 1e6, np.imag(tx), label="Q", alpha=0.8)
     axes[0].set_xlabel("Time (us)")
     axes[0].set_ylabel("Amplitude")
-    axes[0].set_title("TX baseband in one PRI")
+    axes[0].set_title("TX baseband in one CPI")
     axes[0].legend()
 
     nfft = int(2 ** np.ceil(np.log2(tx.size)))

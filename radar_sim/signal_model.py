@@ -8,6 +8,7 @@ from scipy import constants
 
 
 def unit_direction(azimuth_rad: float, elevation_rad: float) -> np.ndarray:
+    '''Compute a unit direction vector (直角坐标) from azimuth and elevation angles.'''
     cos_el = np.cos(elevation_rad)
     return np.array(
         [
@@ -31,6 +32,7 @@ def lfm_pulse(t: np.ndarray, pulse_width: float, bandwidth: float) -> np.ndarray
 
 
 def tx_baseband(t: np.ndarray, waveform: "Waveform") -> np.ndarray:
+    '''这里可以生成一个 pri 的信号，也可以生成多个 pri 的信号。这个方法用来 implementation time delay很棒啊'''
     t = np.asarray(t)
     output = np.zeros_like(t, dtype=np.complex128)
     for pulse_index in range(waveform.num_pulses):
@@ -43,8 +45,8 @@ def tx_baseband(t: np.ndarray, waveform: "Waveform") -> np.ndarray:
 class ArrayGeometry:
     num_x: int
     num_y: int
-    dx: float
-    dy: float
+    dx: float # element spacing in x direction
+    dy: float # element spacing in y direction
 
     def __post_init__(self) -> None:
         if self.num_x <= 0 or self.num_y <= 0:
@@ -56,11 +58,52 @@ class ArrayGeometry:
         x = np.arange(self.num_x) * self.dx
         y = np.arange(self.num_y) * self.dy
         xx, yy = np.meshgrid(x, y, indexing="ij")
-        return np.stack([xx, yy, np.zeros_like(xx)], axis=-1)
+        # 反正核心概念是这个 tensor 存的就是每个 element 的直角坐标, 至于怎么去 access 这些坐标，你试试就知道了
+        return np.stack([xx, yy, np.zeros_like(xx)], axis=-1) # shape (num_x, num_y, 3), 这个 tensor 其实就是存的所有 element 的直角系坐标
+
 
 
 @dataclass
+class Target:
+    range_m: float
+    velocity_m_s: float
+    azimuth_rad: float
+    elevation_rad: float
+    amplitude: complex = 1.0 + 0.0j
+
+    def __post_init__(self) -> None:
+        if self.range_m <= 0.0:
+            raise ValueError("Target range must be positive.")
+
+    def unit_vector(self) -> np.ndarray:
+        '''return 的是目标的单位方向向量(直角坐标)'''
+        return unit_direction(self.azimuth_rad, self.elevation_rad)
+
+
+@dataclass
+class NoiseConfig:
+    std: float
+    seed: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.std < 0.0:
+            raise ValueError("Noise std must be non-negative.")
+
+
+@dataclass(frozen=True)
+class RadarConfig:
+    '''雷达规格参数'''
+    unambiguous_range_m: float
+    max_unambiguous_velocity_m_s: float
+    range_resolution_m: float
+    velocity_resolution_m_s: float
+    prf_hz: float
+    cpi_duration_s: float
+    doppler_resolution_hz: float
+
+@dataclass
 class Waveform:
+    '''雷达波形参数'''
     pulse_width: float
     bandwidth: float
     carrier_frequency: float
@@ -91,7 +134,8 @@ class Waveform:
         return constants.c / self.carrier_frequency
 
     @property
-    def fast_time_samples(self) -> int:
+    def fast_time_samples(self) -> int: 
+        '''这里的 fast_time samples 指的是一个 pri 内的采样点数'''
         return int(np.round(self.pri * self.sample_rate))
 
     @property
@@ -122,44 +166,6 @@ class Waveform:
     def velocity_resolution_m_s(self) -> float:
         return self.wavelength / (2.0 * self.cpi_duration_s)
 
-
-@dataclass
-class Target:
-    range_m: float
-    velocity_m_s: float
-    azimuth_rad: float
-    elevation_rad: float
-    amplitude: complex = 1.0 + 0.0j
-
-    def __post_init__(self) -> None:
-        if self.range_m <= 0.0:
-            raise ValueError("Target range must be positive.")
-
-    def unit_vector(self) -> np.ndarray:
-        return unit_direction(self.azimuth_rad, self.elevation_rad)
-
-
-@dataclass
-class NoiseConfig:
-    std: float
-    seed: int | None = None
-
-    def __post_init__(self) -> None:
-        if self.std < 0.0:
-            raise ValueError("Noise std must be non-negative.")
-
-
-@dataclass(frozen=True)
-class RadarConfig:
-    unambiguous_range_m: float
-    max_unambiguous_velocity_m_s: float
-    range_resolution_m: float
-    velocity_resolution_m_s: float
-    prf_hz: float
-    cpi_duration_s: float
-    doppler_resolution_hz: float
-
-
 class RadarSimulator:
     def __init__(self, geometry: ArrayGeometry, waveform: Waveform) -> None:
         self.geometry = geometry
@@ -189,7 +195,7 @@ class RadarSimulator:
         )
 
     def fast_time_axis(self) -> np.ndarray:
-        num_fast = self.waveform.fast_time_samples
+        num_fast = self.waveform.fast_time_samples # 指的是一个 pri 内的采样点数
         return np.arange(num_fast) / self.waveform.sample_rate
 
     def slow_time_axis(self) -> np.ndarray:
@@ -208,7 +214,9 @@ class RadarSimulator:
             print(self.radar_config_summary())
         fast_time = self.fast_time_axis()
         slow_time = self.slow_time_axis()
-        time_grid = slow_time[:, None] + fast_time[None, :]
+        # time_grid 可以理解成雷达观测的时间窗口，时间本来是一维的就行了，但是为了方便计算，我们把它变成二维的而已。
+        # 这在概念上并没有什么新的东西。你在概念上，把这个 time_grid 拉直，看成一个大的时间窗也是可以的。这样理解更 natural 一些。
+        time_grid = slow_time[:, None] + fast_time[None, :] # time_grid 中每一个 cell 存的其实就是这个 cell 对应的采样时间，而且是真实时间，不是 Index
 
         rx = np.zeros(
             (
@@ -218,22 +226,25 @@ class RadarSimulator:
                 slow_time.size,
             ),
             dtype=np.complex128,
-        )
+        )  # rx[p, q, :, :] 对应的是第 (p, q) 个 element 接收到的信号矩阵，矩阵的行对应 fast time，列对应 slow time
 
         for target in targets:
             direction = target.unit_vector()
             geom_delay = (
                 -np.tensordot(self._positions, direction, axes=([2], [0]))
                 / constants.c
-            )
+            ) # geom_delay shape (num_x, num_y), 存的就是每个 antenna element 相对于雷达相位中心的几何时延.
+            # range_time 就是 R(t),i.e. 目标相对于雷达的实际距离随时间的变化, 还有一点就是，R(t) 在概念上是函数，但是在计算机里就是用数组来表示。
             range_time = target.range_m - target.velocity_m_s * time_grid # v>0 目标靠近雷达
-            tau_range = 2.0 * range_time / constants.c
+            
+            # 这里的这个 tau_range 其实也包含了 doppler effect, 因为 range_time 里面有速度。
+            tau_range = 2.0 * range_time / constants.c # 这个就是 two-way travel time delay 了
 
             for p in range(self.geometry.num_x):
                 for q in range(self.geometry.num_y):
-                    tau = tau_range + geom_delay[p, q]
+                    tau = tau_range + geom_delay[p, q] # 信号测量到的 total delay = two-way range delay + geometry delay
                     t_emit = time_grid - tau
-                    tx = tx_baseband(t_emit, self.waveform)
+                    tx = tx_baseband(t_emit, self.waveform) # 这个信号就是 x_tx(t-tau),i.e. baseband 经历的 time delay。这里的 baseband 指的是整个 pulse train
                     phase = np.exp(
                         -1j * 2.0 * np.pi * self.waveform.carrier_frequency * tau
                     )
@@ -246,5 +257,7 @@ class RadarSimulator:
                 rng.standard_normal(rx.shape) + 1j * rng.standard_normal(rx.shape)
             )
             rx += noise_samples
-
+        # 这里的 fast_time: 0, Ts, 2Ts, ..., (N-1)Ts
+        # slow_time: 0, PRI, 2PRI, ..., (M-1)PRI
+        # fast_time 和 slow_time 一起定义了 rx 里面的每一个采样点对应的实际时间
         return rx, fast_time, slow_time
