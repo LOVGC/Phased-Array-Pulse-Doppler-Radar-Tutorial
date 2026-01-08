@@ -11,7 +11,7 @@ def main() -> None:
         carrier_frequency=10e9,
         sample_rate=40e6,
         pri=200e-6,
-        num_pulses=16,
+        num_pulses=8,
     )
     geometry = ArrayGeometry(
         num_x=2,
@@ -27,13 +27,13 @@ def main() -> None:
             elevation_rad=np.deg2rad(5.0),
             amplitude=1.0 + 0.0j,
         ),
-        # Target(
-        #     range_m=9_500.0,
-        #     velocity_m_s=-20.0,
-        #     azimuth_rad=np.deg2rad(-10.0),
-        #     elevation_rad=np.deg2rad(0.0),
-        #     amplitude=0.7 + 0.2j,
-        # ),
+        Target(
+            range_m=4_500.0,
+            velocity_m_s=-20.0,
+            azimuth_rad=np.deg2rad(-10.0),
+            elevation_rad=np.deg2rad(0.0),
+            amplitude=0.7 + 0.2j,
+        ),
     ]
 
     simulator = RadarSimulator(geometry, waveform)
@@ -43,7 +43,7 @@ def main() -> None:
 
     num_fast = fast_time.size
     num_pulses = slow_time.size
-    time_cpi = np.arange(num_fast * num_pulses) / waveform.sample_rate
+    time_cpi = np.arange(num_fast * num_pulses) / waveform.sample_rate # 这个就是又把时间轴拉直了。
 
     num_elements = geometry.num_x * geometry.num_y
     fig, axes = plt.subplots(

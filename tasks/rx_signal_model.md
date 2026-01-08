@@ -1,5 +1,6 @@
 # 2D Phased array signal model
 
+ref: https://chatgpt.com/share/695f2292-a288-8007-9c37-e89e61a0f1e9
 ---
 
 ## A) 参数与符号（全部先列出）
