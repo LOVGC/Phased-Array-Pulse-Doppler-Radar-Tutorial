@@ -18,7 +18,7 @@ def matched_filter_taps(waveform: Waveform) -> np.ndarray:
         raise ValueError("Pulse width too small for the current sample rate.")
     t_ref = np.arange(num_ref) / waveform.sample_rate
     reference = lfm_pulse(t_ref, waveform.pulse_width, waveform.bandwidth)
-    return np.conj(reference[::-1])
+    return np.conj(reference[::-1]) # shape (num_ref, )
 
 
 def range_compress(rx: np.ndarray, waveform: Waveform) -> np.ndarray:

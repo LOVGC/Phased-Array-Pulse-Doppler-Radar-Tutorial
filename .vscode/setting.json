@@ -1,0 +1,4 @@
+"pasteImage.path": "${projectRoot}/心得体会/imgs",
+"pasteImage.basePath": "${projectRoot}/心得体会",
+"pasteImage.forceUnixStyleSeparator": true,
+"pasteImage.prefix": "/"
