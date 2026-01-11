@@ -6,7 +6,9 @@
 - 使用 numpy, scipy 作为科学计算工具包
 - 使用 matplotlib 来作为画图工具包
 
+# radar signal model knowledge base
 
+关于目前知道的 radar signal model 以及 basic radar signal porcessing 的知识在./knowledge_base 这个文件夹中。你需要先 go through 一下这里面的知识。
 
 # Project codebase summary
 - Project uses uv to manage dependencies and run scripts (see `pyproject.toml`).

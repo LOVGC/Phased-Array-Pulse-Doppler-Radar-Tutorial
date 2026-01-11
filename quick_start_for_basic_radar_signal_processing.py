@@ -83,13 +83,16 @@ def main() -> None:
     snapshot = doppler_cube[:, :, range_idx, doppler_idx].reshape(-1)
 
     az_deg = np.arange(-60.0, 60.1, 2.0)
-    el_deg = np.arange(-20.0, 20.1, 2.0)
+    el_deg = np.arange(0.0, 20.1, 2.0)
     az_rad = np.deg2rad(az_deg)
     el_rad = np.deg2rad(el_deg)
 
     steering = build_steering_matrix(geometry, waveform.wavelength, az_rad, el_rad)
     bartlett = bartlett_beamform(snapshot, steering, el_rad.size, az_rad.size)
     bartlett_db = 20.0 * np.log10(np.abs(bartlett) / np.max(np.abs(bartlett)) + 1e-12)
+    bartlett_peak_idx = np.unravel_index(np.argmax(np.abs(bartlett)), bartlett.shape)
+    bartlett_peak_az = az_deg[bartlett_peak_idx[1]]
+    bartlett_peak_el = el_deg[bartlett_peak_idx[0]]
 
     # 2D FFT beamforming (fast DBF for UPA), same range/Doppler bin.
     doppler_slice = doppler_cube[:, :, range_idx : range_idx + 1, doppler_idx : doppler_idx + 1]
@@ -106,6 +109,13 @@ def main() -> None:
         fft_size_y=64,
     )
     fft_db = 20.0 * np.log10(np.abs(fft_spectrum) / np.max(np.abs(fft_spectrum)) + 1e-12)
+    fft_peak_idx = np.unravel_index(np.argmax(np.abs(fft_spectrum)), fft_spectrum.shape)
+    fft_peak_u_x = u_x[fft_peak_idx[0]]
+    fft_peak_u_y = u_y[fft_peak_idx[1]]
+    cos_el = np.sqrt(fft_peak_u_x**2 + fft_peak_u_y**2)
+    cos_el = np.clip(cos_el, 0.0, 1.0)
+    fft_peak_el_deg = np.rad2deg(np.arccos(cos_el))
+    fft_peak_az_deg = np.rad2deg(np.arctan2(fft_peak_u_y, fft_peak_u_x))
 
     # --- 6) Visualize each step ---
     fig_raw, ax_raw = plt.subplots(figsize=(9, 4))
@@ -152,6 +162,22 @@ def main() -> None:
         extent=extent_bartlett,
         cmap="magma",
     )
+    ax_bartlett.scatter(
+        bartlett_peak_az,
+        bartlett_peak_el,
+        marker="x",
+        color="white",
+        s=60,
+    )
+    ax_bartlett.text(
+        bartlett_peak_az,
+        bartlett_peak_el,
+        f" peak ({bartlett_peak_az:.1f} deg, {bartlett_peak_el:.1f} deg)",
+        color="white",
+        fontsize=9,
+        ha="left",
+        va="bottom",
+    )
     ax_bartlett.set_xlabel("Azimuth (deg)")
     ax_bartlett.set_ylabel("Elevation (deg)")
     ax_bartlett.set_title("Bartlett DBF (range/Doppler of target 1)")
@@ -165,6 +191,16 @@ def main() -> None:
         aspect="auto",
         extent=extent_fft,
         cmap="viridis",
+    )
+    ax_fft.scatter(fft_peak_u_x, fft_peak_u_y, marker="x", color="white", s=60)
+    ax_fft.text(
+        fft_peak_u_x,
+        fft_peak_u_y,
+        f" peak az={fft_peak_az_deg:.1f} deg, el={fft_peak_el_deg:.1f} deg",
+        color="white",
+        fontsize=9,
+        ha="left",
+        va="bottom",
     )
     ax_fft.set_xlabel("Direction cosine u_x")
     ax_fft.set_ylabel("Direction cosine u_y")
