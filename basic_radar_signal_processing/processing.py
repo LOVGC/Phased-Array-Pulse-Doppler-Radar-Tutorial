@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
-from scipy import constants
+from scipy import constants, signal
 
 from radar_sim.signal_model import ArrayGeometry, Waveform, lfm_pulse
 
@@ -89,6 +89,58 @@ def bartlett_beamform(
     return response.reshape(num_el, num_az)
 
 
+def estimate_covariance(
+    snapshots: np.ndarray, diagonal_loading: float = 0.0
+) -> np.ndarray:
+    if snapshots.ndim == 1:
+        snapshots = snapshots[:, None]
+    if snapshots.ndim != 2:
+        raise ValueError("snapshots must have shape [num_elements, num_snapshots].")
+    num_snapshots = snapshots.shape[1]
+    if num_snapshots < 1:
+        raise ValueError("snapshots must contain at least one snapshot.")
+    covariance = snapshots @ snapshots.conj().T / num_snapshots
+    if diagonal_loading > 0.0:
+        loading = diagonal_loading * np.trace(covariance).real / covariance.shape[0]
+        covariance = covariance + loading * np.eye(covariance.shape[0])
+    return covariance
+
+
+def music_spectrum(
+    covariance: np.ndarray,
+    steering: np.ndarray,
+    num_sources: int,
+    floor: float = 1e-12,
+) -> np.ndarray:
+    if covariance.ndim != 2 or covariance.shape[0] != covariance.shape[1]:
+        raise ValueError("covariance must be a square matrix.")
+    num_elements = covariance.shape[0]
+    if steering.ndim != 2 or steering.shape[1] != num_elements:
+        raise ValueError("steering must have shape [num_angles, num_elements].")
+    if not (1 <= num_sources < num_elements):
+        raise ValueError("num_sources must be between 1 and num_elements - 1.")
+
+    eigvals, eigvecs = np.linalg.eigh(covariance)
+    order = np.argsort(eigvals)
+    noise_eigvecs = eigvecs[:, order[: num_elements - num_sources]]
+    proj = noise_eigvecs.conj().T @ steering.T
+    denom = np.sum(np.abs(proj) ** 2, axis=0)
+    return 1.0 / np.maximum(denom, floor)
+
+
+def music_spectrum_from_snapshots(
+    snapshots: np.ndarray,
+    steering: np.ndarray,
+    num_sources: int,
+    diagonal_loading: float = 0.0,
+    floor: float = 1e-12,
+) -> np.ndarray:
+    covariance = estimate_covariance(
+        snapshots, diagonal_loading=diagonal_loading
+    )
+    return music_spectrum(covariance, steering, num_sources, floor=floor)
+
+
 def fft_beamform_2d(
     doppler_cube: np.ndarray,
     window: str | None = "hann",
@@ -139,3 +191,64 @@ def spatial_frequency_axes(
     u_x = (wavelength / dx) * freq_x
     u_y = (wavelength / dy) * freq_y
     return u_x, u_y
+
+
+def _ca_cfar_nd(
+    power: np.ndarray,
+    guard_cells: tuple[int, ...],
+    training_cells: tuple[int, ...],
+    pfa: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    if power.ndim != len(guard_cells) or power.ndim != len(training_cells):
+        raise ValueError("guard_cells and training_cells must match power dimensions.")
+    if any(value < 0 for value in guard_cells + training_cells):
+        raise ValueError("guard_cells and training_cells must be non-negative.")
+    if not (0.0 < pfa < 1.0):
+        raise ValueError("pfa must be in (0, 1).")
+
+    half_sizes = [g + t for g, t in zip(guard_cells, training_cells)]
+    kernel_big = np.ones(tuple(2 * size + 1 for size in half_sizes))
+    kernel_guard = np.ones(tuple(2 * size + 1 for size in guard_cells))
+    num_training = int(kernel_big.size - kernel_guard.size)
+    if num_training <= 0:
+        raise ValueError("Training window must contain at least one cell.")
+
+    alpha = num_training * (pfa ** (-1.0 / num_training) - 1.0)
+    sum_big = signal.convolve(power, kernel_big, mode="same")
+    sum_guard = signal.convolve(power, kernel_guard, mode="same")
+    training_sum = sum_big - sum_guard
+    threshold = alpha * training_sum / num_training
+
+    slices = []
+    for half in half_sizes:
+        if half == 0:
+            slices.append(slice(None))
+        else:
+            slices.append(slice(half, -half))
+    valid = np.zeros_like(power, dtype=bool)
+    valid[tuple(slices)] = True
+    threshold = np.where(valid, threshold, np.nan)
+    detections = (power > threshold) & valid
+    return threshold, detections
+
+
+def ca_cfar_2d(
+    power_map: np.ndarray,
+    guard_cells: tuple[int, int],
+    training_cells: tuple[int, int],
+    pfa: float = 1e-6,
+) -> tuple[np.ndarray, np.ndarray]:
+    if power_map.ndim != 2:
+        raise ValueError("power_map must be 2D.")
+    return _ca_cfar_nd(power_map, guard_cells, training_cells, pfa)
+
+
+def ca_cfar_3d(
+    power_cube: np.ndarray,
+    guard_cells: tuple[int, int, int],
+    training_cells: tuple[int, int, int],
+    pfa: float = 1e-6,
+) -> tuple[np.ndarray, np.ndarray]:
+    if power_cube.ndim != 3:
+        raise ValueError("power_cube must be 3D.")
+    return _ca_cfar_nd(power_cube, guard_cells, training_cells, pfa)

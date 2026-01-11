@@ -11,34 +11,39 @@
 关于目前知道的 radar signal model 以及 basic radar signal porcessing 的知识在./knowledge_base 这个文件夹中。你需要先 go through 一下这里面的知识。
 
 # Project codebase summary
-- Project uses uv to manage dependencies and run scripts (see `pyproject.toml`).
-- Package layout: `radar_sim/` holds the simulation code, `basic_radar_signal_processing/` holds processing utilities, `utils/` holds shared demo scene helpers, `tests/` holds runnable demo scripts.
+- Purpose: simulate a 2D phased-array pulse-Doppler radar (RX baseband), then perform basic signal processing to estimate range, velocity, and angle; include MUSIC DOA and CFAR detection on RD/RA/RAD outputs.
+- Architecture: `radar_sim/` models waveform/array/targets and generates `X[p,q,fast_time,slow_time]`; `basic_radar_signal_processing/` provides range/Doppler/angle processing plus DOA and CFAR; `utils/` supplies shared demo scenes; `tests/` holds runnable plot-based demos.
 - `radar_sim/signal_model.py`:
   - Core functions: `unit_direction`, `lfm_pulse`, `tx_baseband`.
   - Data classes: `ArrayGeometry`, `Waveform`, `Target`, `NoiseConfig`, `RadarConfig`.
   - `RadarSimulator` builds element positions, exposes time axes, and simulates RX baseband.
   - `rx_baseband` returns `X[p, q, fast_time, slow_time]` plus time axes, with optional noise.
-  - On simulation start, it prints a radar performance summary (range/velocity resolution, PRF, CPI).
+  - Prints radar performance summary (range/velocity/angle resolution, PRF, CPI).
 - `radar_sim/__init__.py` re-exports public classes and helpers.
 - `basic_radar_signal_processing/processing.py`:
-  - Range compression helpers: `matched_filter_taps`, `range_compress`, `range_axis_m`.
+  - Range compression: `matched_filter_taps`, `range_compress`, `range_axis_m`.
   - Doppler processing: `doppler_process`, `doppler_axis_hz`.
   - Angle processing: `build_steering_matrix`, `bartlett_beamform`, `fft_beamform_2d`, `spatial_frequency_axes`.
+  - DOA utilities: `estimate_covariance`, `music_spectrum`, `music_spectrum_from_snapshots`.
+  - CFAR utilities: `ca_cfar_2d`, `ca_cfar_3d`.
 - `basic_radar_signal_processing/__init__.py` re-exports processing utilities.
 - `utils/demo_scene.py` provides `build_demo_scene` and `simulate_rx` for shared test scenarios.
-- Demo scripts:
-  - `tests/test_tx_baseband.py`: plots a single-PRI TX baseband time/spectrum.
-  - `tests/test_rx_baseband.py`: plots each element's CPI time/spectrum (with noise).
-  - `tests/test_range_compression.py`: compares raw vs range-compressed pulse.
-  - `tests/test_doppler_processing.py`: plots the range-Doppler map.
-  - `tests/test_bartlett_dbf.py`: Bartlett DBF angle response for a chosen range/Doppler bin.
+- Demo scripts (plots):
+  - `tests/test_tx_baseband.py`: single-PRI TX baseband time/spectrum.
+  - `tests/test_rx_baseband.py`: element CPI time/spectrum (with noise).
+  - `tests/test_range_compression.py`: raw vs range-compressed pulse.
+  - `tests/test_doppler_processing.py`: range-Doppler map with CFAR overlay.
+  - `tests/test_bartlett_dbf.py`: Bartlett DBF response for a range/Doppler bin.
   - `tests/test_fft_dbf.py`: 2D FFT beamforming in direction-cosine space.
+  - `tests/test_music_doa.py`: MUSIC az-el spectrum with CFAR overlay.
+  - `tests/test_ra_rad_cfar.py`: RA map and RAD CFAR detections.
+  - `tests/test_multi_scene_cfar.py`: multiple scenes with RD/RA/Az-El pre/post CFAR.
   - `quick_start_for_basic_radar_signal_processing.py`: end-to-end walkthrough with plots.
-- Run demos with uv:
-  - `uv run python tests/test_tx_baseband.py`
-  - `uv run python tests/test_rx_baseband.py`
-  - `uv run python tests/test_range_compression.py`
-  - `uv run python tests/test_doppler_processing.py`
-  - `uv run python tests/test_bartlett_dbf.py`
-  - `uv run python tests/test_fft_dbf.py`
+  - `quick_start_for_signal_model_basic_process_cfar.py`: end-to-end with RD/RA/Az-El pre/post CFAR.
+- How to run (uv):
   - `uv run python quick_start_for_basic_radar_signal_processing.py`
+  - `uv run python quick_start_for_signal_model_basic_process_cfar.py`
+  - `uv run python tests/test_doppler_processing.py`
+  - `uv run python tests/test_music_doa.py`
+  - `uv run python tests/test_ra_rad_cfar.py`
+  - `uv run python tests/test_multi_scene_cfar.py`

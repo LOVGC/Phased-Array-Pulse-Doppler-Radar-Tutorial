@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from basic_radar_signal_processing.processing import (
+    ca_cfar_2d,
     doppler_axis_hz,
     doppler_process,
     range_axis_m,
@@ -25,6 +26,12 @@ def main() -> None:
 
     rd_power = np.sum(np.abs(doppler_cube) ** 2, axis=(0, 1))
     rd_db = 10.0 * np.log10(rd_power + 1e-12)
+    _, detections = ca_cfar_2d(
+        rd_power,
+        guard_cells=(2, 1),
+        training_cells=(12, 4),
+        pfa=1e-5,
+    )
 
     fig, ax = plt.subplots(figsize=(9, 6))
     extent = [
@@ -44,6 +51,19 @@ def main() -> None:
     ax.set_ylabel("Range (km)")
     ax.set_title("Range-Doppler Map")
     fig.colorbar(im, ax=ax, label="Power (dB)")
+    det_r, det_d = np.where(detections)
+    if det_r.size:
+        ax.scatter(
+            velocity_axis[det_d],
+            range_axis[det_r] / 1e3,
+            s=18,
+            marker="o",
+            facecolors="none",
+            edgecolors="white",
+            linewidths=0.8,
+            label="CFAR",
+        )
+        ax.legend(loc="upper right")
     plt.show()
 
 

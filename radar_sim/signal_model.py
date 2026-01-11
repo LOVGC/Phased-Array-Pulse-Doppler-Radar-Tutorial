@@ -97,6 +97,8 @@ class RadarConfig:
     max_unambiguous_velocity_m_s: float
     range_resolution_m: float
     velocity_resolution_m_s: float
+    azimuth_resolution_rad: float
+    elevation_resolution_rad: float
     prf_hz: float
     cpi_duration_s: float
     doppler_resolution_hz: float
@@ -171,15 +173,27 @@ class RadarSimulator:
         self.geometry = geometry
         self.waveform = waveform
         self._positions = geometry.element_positions()
+        az_res_rad, el_res_rad = self._angle_resolution_rad()
         self.radar_config = RadarConfig(
             unambiguous_range_m=waveform.unambiguous_range_m,
             max_unambiguous_velocity_m_s=waveform.max_unambiguous_velocity_m_s,
             range_resolution_m=waveform.range_resolution_m,
             velocity_resolution_m_s=waveform.velocity_resolution_m_s,
+            azimuth_resolution_rad=az_res_rad,
+            elevation_resolution_rad=el_res_rad,
             prf_hz=waveform.prf,
             cpi_duration_s=waveform.cpi_duration_s,
             doppler_resolution_hz=waveform.doppler_resolution_hz,
         )
+
+    def _angle_resolution_rad(self) -> tuple[float, float]:
+        # Approximate 3 dB beamwidth for a uniformly weighted UPA (broadside).
+        aperture_x = (self.geometry.num_x - 1) * self.geometry.dx
+        aperture_y = (self.geometry.num_y - 1) * self.geometry.dy
+        wavelength = self.waveform.wavelength
+        az_res = np.inf if aperture_x <= 0.0 else 0.886 * wavelength / aperture_x
+        el_res = np.inf if aperture_y <= 0.0 else 0.886 * wavelength / aperture_y
+        return az_res, el_res
 
     def radar_config_summary(self) -> str:
         config = self.radar_config
@@ -189,6 +203,8 @@ class RadarSimulator:
             f"  max_unambig_velocity_m_s  : {config.max_unambiguous_velocity_m_s:.6g}\n"
             f"  range_resolution_m        : {config.range_resolution_m:.6g}\n"
             f"  velocity_resolution_m_s   : {config.velocity_resolution_m_s:.6g}\n"
+            f"  azimuth_resolution_deg    : {np.rad2deg(config.azimuth_resolution_rad):.6g}\n"
+            f"  elevation_resolution_deg  : {np.rad2deg(config.elevation_resolution_rad):.6g}\n"
             f"  prf_hz                    : {config.prf_hz:.6g}\n"
             f"  cpi_duration_s            : {config.cpi_duration_s:.6g}\n"
             f"  doppler_resolution_hz     : {config.doppler_resolution_hz:.6g}"
